@@ -1,6 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { Config, type Config as ConfigType, resolveSession, resolveSocketPath } from './config.ts'
 import { registerBotDirectory } from './bot-directory.ts'
+import { registerBotChat } from './bot-chat.ts'
 import { guardLocalRequest, requireMethod } from './http-guard.ts'
 import { createLogger } from './log.ts'
 import { setupEventForwarding } from './events/forward.ts'
@@ -70,6 +71,7 @@ async function readJsonBody(req: unknown): Promise<unknown> {
  */
 export function apply(ctx: Context, config: ConfigType) {
   registerBotDirectory(ctx)
+  registerBotChat(ctx)
   // M1 MVP 工具
   registerSnapshot(ctx)
   registerAgentList(ctx)

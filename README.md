@@ -64,3 +64,25 @@ the `DickyChant/ovis` branch `feat/dsh-bots` consumes it from the Ovis server.
 当 DS Bot 提供 `botDirectory` 服务时，`GET /herdr-bots` 返回版本化的只读元数据。
 该接口沿用本地 Host/Origin 检查，只接受 GET；没有服务时返回 503，不影响 Herdr 工具。
 响应禁止缓存，不包含对话正文、工具参数、凭据或审批内容。
+
+
+### Optional direct chat bridge (personal fork)
+
+The `feat/bot-chat` branch adds `/herdr-bots/chat` and `/herdr-bots/send` (POST),
+and `/herdr-bots/events` (GET/SSE). They require both the local Host/Origin guard
+and a private Bearer credential. Store a random 32-byte hex credential with mode
+0600 at `~/.config/ovis-dsh/bridge-token`, or set `HERDR_DSH_TOKEN_FILE` to its path.
+Ovis reads the same private file on the server; the browser never receives it.
+Without a credential the routes refuse access, while the directory still works.
+
+DS Bot's `botBridge` service is required (`DickyChant/DeepSeek-Bot`, `feat/ovis-chat`).
+The service resolves persistent runtime/Bot IDs into the current own chat, queues
+text messages through DSH and provides filtered live events. Ovis reloads history
+on reconnect. Approval controls and group chat remain in DSH. Automatic send retries
+are disabled; request IDs deduplicate repeated submissions within a bounded runtime cache.
+
+`feat/bot-chat` 分支新增私聊记录、消息发送与实时事件接口。这些接口同时要求本地
+Host/Origin 校验和私有 Bearer 凭据。将随机生成的 32 字节十六进制凭据保存为
+`~/.config/ovis-dsh/bridge-token`（权限 0600），或通过 `HERDR_DSH_TOKEN_FILE`
+指定文件路径。Ovis 服务端读取同一文件，浏览器不会收到凭据。没有凭据时私聊接口
+拒绝访问，目录接口仍可使用。审批和群聊保留在 DSH 中；断线后重新读取记录，不自动重发消息。
