@@ -246,7 +246,7 @@ export function apply(ctx: Context, config: Config) {
   // 这里用宽松类型桥访问（与 state-report.ts 一致）
   const sessionOf = (agent: any): unknown => agent?.session
 
-  const offCreated = ctx.on('agent/created', (payload: any) => {
+  const offCreated = ctx.on('agent/created', (payload: any): undefined => {
     const agentId = payload.agent.id
     void bind(agentId, sessionOf(payload.agent)).then(binding => {
       if (binding) report(agentId, 'idle', 'herdr session ready')

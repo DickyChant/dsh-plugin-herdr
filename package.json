@@ -38,7 +38,7 @@
     "test": "pnpm build && node --experimental-transform-types --test \"test/unit/*.test.ts\"",
     "test:integration": "pnpm build && node test/integration/run.mjs && node test/integration/extended.mjs && node test/integration/events.mjs && node test/integration/close-rename.mjs && node test/integration/terminal-session.mjs",
     "typecheck": "tsc --noEmit",
-    "quality": "pnpm typecheck && pnpm gen:types:check && pnpm test",
+    "quality": "pnpm build && pnpm typecheck && pnpm gen:types:check && node --experimental-transform-types --test \"test/unit/*.test.ts\"",
     "prepare": "pnpm build",
     "dsh:blank": "node scripts/blank-dsh.mjs",
     "dsh:blank:reset": "node scripts/blank-dsh.mjs --reset"
@@ -70,7 +70,8 @@
     "@deepseek-ai/dsh-jobs": "0.2.1-rc.2",
     "@deepseek-ai/dsh-tools": "0.2.1-rc.2",
     "@deepseek-ai/dsh-typert-protocol": "0.2.1-rc.2",
-    "@deepseek-ai/schemastery": "3.18.5"
+    "@deepseek-ai/schemastery": "3.18.5",
+    "@deepseek-ai/dsh-util-values": "0.2.1-rc.2"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.5",
@@ -78,7 +79,8 @@
     "@deepseek-ai/dsh-jobs": "^0.2.1-rc.2",
     "@deepseek-ai/dsh-tools": "^0.2.1-rc.2",
     "@deepseek-ai/dsh-typert-protocol": "^0.2.1-rc.2",
-    "@deepseek-ai/schemastery": "^3.18.5"
+    "@deepseek-ai/schemastery": "^3.18.5",
+    "@deepseek-ai/dsh-util-values": "^0.2.1-rc.2"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/cordis": {
@@ -97,6 +99,9 @@
       "optional": true
     },
     "@deepseek-ai/schemastery": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-util-values": {
       "optional": true
     }
   }

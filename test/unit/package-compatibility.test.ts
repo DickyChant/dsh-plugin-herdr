@@ -11,6 +11,7 @@ test('host packages cannot shadow the DSH runtime through installed dependencies
     '@deepseek-ai/dsh-agent',
     '@deepseek-ai/dsh-jobs',
     '@deepseek-ai/dsh-tools',
+    '@deepseek-ai/dsh-util-values',
     '@deepseek-ai/dsh-typert-protocol',
   ]) {
     assert.equal(manifest.dependencies[name], undefined, name)

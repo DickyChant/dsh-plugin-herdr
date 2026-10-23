@@ -11,6 +11,7 @@ import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools'
 interface JobStartLike {
   kind: string
   label: string
+  owner?: string
   run: () => JobHooks
 }
 
@@ -51,7 +52,7 @@ test('startWaitJob: cancel aborts the wait signal and done settles with killed o
   // CA-015：取消是框架认可的 killed 语义，不再是 failed
   assert.equal(outcome.status, 'killed')
   assert.equal(outcome.detail, 'user said stop', 'cancel reason forwarded verbatim')
-  assert.match(String(outcome.output), /aborted/)
+  assert.match(String(outcome.result), /aborted/)
 })
 
 test('CA-015: cancel is idempotent and done settles exactly once', async () => {
@@ -74,23 +75,6 @@ test('CA-015: cancel is idempotent and done settles exactly once', async () => {
   assert.equal(outcome.detail, 'first', 'first reason wins')
 })
 
-test('CA-015: readOutput behavior is defined (empty until settle, then terminal, idempotent)', async () => {
-  const { ctx, holder } = makeCtx()
-  startWaitJob(ctx, {
-    label: 'wait ro',
-    wait: async () => ({ kind: 'completed' as const, status: 'done' as const, waited_ms: 5 }),
-    render: r => JSON.stringify(r),
-  })
-  const hooks = holder.value!.run()
-  assert.equal(hooks.readOutput?.(), '', 'empty before settle')
-  const outcome = await hooks.done
-  assert.equal(outcome.status, 'completed')
-  assert.equal(outcome.output, '{"kind":"completed","status":"done","waited_ms":5}')
-  // 幂等：重复读取返回同一终端输出，不被消费
-  assert.equal(hooks.readOutput?.(), outcome.output)
-  assert.equal(hooks.readOutput?.(), outcome.output)
-})
-
 test('startWaitJob: completed path carries rendered output', async () => {
   const { ctx, holder } = makeCtx()
   startWaitJob(ctx, {
@@ -101,8 +85,7 @@ test('startWaitJob: completed path carries rendered output', async () => {
   const hooks = holder.value!.run()
   const outcome = await hooks.done
   assert.equal(outcome.status, 'completed')
-  assert.equal(outcome.output, '{"kind":"completed","status":"done","waited_ms":5}')
-  assert.equal(hooks.readOutput?.(), outcome.output)
+  assert.equal(outcome.result, '{"kind":"completed","status":"done","waited_ms":5}')
 })
 
 test('startWaitJob: wait rejection becomes failed outcome (not killed)', async () => {
@@ -144,7 +127,7 @@ function makeToolHarness(herdr: Record<string, unknown>) {
   return { ctx, defs, holder }
 }
 
-const toolExec = { signal: new AbortController().signal, agent: 'tester' } as unknown as ToolRunContext
+const toolExec = { signal: new AbortController().signal, agent: { id: 'tester' } } as unknown as ToolRunContext
 
 test('CA-015: pane_run background job — cancel settles killed (integration)', async () => {
   let sawAbort = false
@@ -163,6 +146,7 @@ test('CA-015: pane_run background job — cancel settles killed (integration)', 
   const run = defs.find(d => d.name === 'herdr_pane_run')!
   const res = await run.execute({ command: 'sleep 5', run_in_background: true }, toolExec)
   assert.deepEqual(res, { kind: 'background', jobId: 'herdr-1' })
+  assert.equal(holder.value!.owner, 'tester')
   const hooks = holder.value!.run()
   hooks.cancel('killed by user')
   const outcome = await hooks.done
@@ -188,6 +172,7 @@ test('CA-015: agent_wait background job — cancel settles killed (integration)'
   const wait = defs.find(d => d.name === 'herdr_agent_wait')!
   const res = await wait.execute({ target: 'w1:p1', until: ['done'], run_in_background: true }, toolExec)
   assert.deepEqual(res, { kind: 'background', jobId: 'herdr-1' })
+  assert.equal(holder.value!.owner, 'tester')
   const hooks = holder.value!.run()
   hooks.cancel('teardown')
   const outcome = await hooks.done

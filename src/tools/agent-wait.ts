@@ -105,7 +105,7 @@ export function registerAgentWait(ctx: Context, opts: AgentWaitToolOptions) {
         }
         if (args.run_in_background && opts.allowBackground) {
           const jobId = startWaitJob<WaitAgentResult>(ctx, {
-            owner: exec.agent,
+            owner: exec.agent?.id,
             label: `herdr wait ${request.target} until ${request.until.join('/')}`,
             wait: signal => ctx.herdr.waitAgent(request, signal),
             render: renderWaitResult,
