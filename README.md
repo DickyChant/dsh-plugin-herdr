@@ -51,3 +51,16 @@ pnpm test         # unit tests (node --test)
 pnpm test:integration  # against a live herdr server; SKIPs when unavailable
 pnpm gen:types    # regenerate protocol types from the herdr schema fixture
 ```
+
+### Optional DS Bot directory (personal fork)
+
+`GET /herdr-bots` exposes versioned, read-only metadata when DS Bot provides the
+`botDirectory` service. It uses the existing localhost Host/Origin guard and accepts
+only GET. Without the service it returns 503; Herdr tools continue to work. Responses
+are `no-store` and contain no conversation text, tool arguments, credentials or approval
+contents. The `DickyChant/DeepSeek-Bot` branch `feat/ovis-directory` supplies the service;
+the `DickyChant/ovis` branch `feat/dsh-bots` consumes it from the Ovis server.
+
+当 DS Bot 提供 `botDirectory` 服务时，`GET /herdr-bots` 返回版本化的只读元数据。
+该接口沿用本地 Host/Origin 检查，只接受 GET；没有服务时返回 503，不影响 Herdr 工具。
+响应禁止缓存，不包含对话正文、工具参数、凭据或审批内容。

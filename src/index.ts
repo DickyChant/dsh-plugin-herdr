@@ -1,5 +1,6 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { Config, type Config as ConfigType, resolveSession, resolveSocketPath } from './config.ts'
+import { registerBotDirectory } from './bot-directory.ts'
 import { guardLocalRequest, requireMethod } from './http-guard.ts'
 import { createLogger } from './log.ts'
 import { setupEventForwarding } from './events/forward.ts'
@@ -68,6 +69,7 @@ async function readJsonBody(req: unknown): Promise<unknown> {
  * cordis 4 要求访问服务的 fiber 显式 inject（见 client-entry.ts 注释）。
  */
 export function apply(ctx: Context, config: ConfigType) {
+  registerBotDirectory(ctx)
   // M1 MVP 工具
   registerSnapshot(ctx)
   registerAgentList(ctx)
