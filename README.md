@@ -86,3 +86,17 @@ Host/Origin 校验和私有 Bearer 凭据。将随机生成的 32 字节十六�
 `~/.config/ovis-dsh/bridge-token`（权限 0600），或通过 `HERDR_DSH_TOKEN_FILE`
 指定文件路径。Ovis 服务端读取同一文件，浏览器不会收到凭据。没有凭据时私聊接口
 拒绝访问，目录接口仍可使用。审批和群聊保留在 DSH 中；断线后重新读取记录，不自动重发消息。
+
+### Native conversations in the personal fork
+
+`feat/bot-conversations` adds authenticated POST routes for `upload`, `download`,
+`approvals`, and `answer` under `/herdr-bots/`, plus optional room targeting on chat,
+send and events. It requires DS Bot's `feat/ovis-conversations` bridge and Ovis's
+`feat/native-conversations` UI. Uploads are capped at 10 MiB per file. Approval
+answers are limited to explicit allow-once or reject decisions; policy is unchanged.
+The metadata-only directory remains version 1. No DSH browser cookie is forwarded.
+
+个人分支 `feat/bot-conversations` 增加群聊目标、附件上传和下载，以及待审批查询和
+明确的一次性审批决定。配合 DS Bot 的 `feat/ovis-conversations` 与 Ovis 的
+`feat/native-conversations` 使用。每个附件最大 10 MiB，审批不修改权限策略。
+只读目录仍为版本 1，接口不转发 DSH 浏览器 Cookie。

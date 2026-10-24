@@ -11,6 +11,10 @@ interface Bridge {
   send(input: unknown): Promise<unknown>
   settings(input: unknown): Promise<unknown>
   control(input: unknown): Promise<unknown>
+  upload(input: unknown): Promise<unknown>
+  download(input: unknown): Promise<unknown>
+  approvals(input: unknown): Promise<unknown>
+  answer(input: unknown): Promise<unknown>
   subscribe(input: unknown, listener: (event: string, data: unknown) => void): Promise<() => void>
 }
 interface WebServer {
@@ -33,7 +37,7 @@ export function registerBotChat(ctx: Context, token = bridgeToken()): void {
       botCtx.effect(() => () => { bridge = undefined; for (const close of active) close() }, 'herdr: bot chat source')
     })
     const webServer = (webCtx as unknown as { webServer: WebServer }).webServer
-    for (const action of ['chat', 'send', 'events', 'settings', 'control'] as const) {
+    for (const action of ['chat', 'send', 'events', 'settings', 'control', 'upload', 'download', 'approvals', 'answer'] as const) {
       const off = webServer.register({ kind: 'exact', path: `/herdr-bots/${action}`, handler: async (req, res) => {
         const json = (status: number, body: unknown) => {
           res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' })
@@ -50,14 +54,14 @@ export function registerBotChat(ctx: Context, token = bridgeToken()): void {
           let input: unknown
           if (action === 'events') {
             const url = new URL(req.url ?? '', 'http://localhost')
-            input = { runtimeId: url.searchParams.get('runtimeId'), botId: url.searchParams.get('botId') }
+            input = { runtimeId: url.searchParams.get('runtimeId'), botId: url.searchParams.get('botId'), ...(url.searchParams.has('roomId') ? { roomId: url.searchParams.get('roomId') } : {}) }
           } else {
             let body = ''
             const decoder = new TextDecoder()
             let bytes = 0
             for await (const chunk of req) {
               bytes += chunk.length
-              if (bytes > 140000) return json(413, { error: 'too_large' })
+              if (bytes > (action === 'upload' ? 14000000 : 140000)) return json(413, { error: 'too_large' })
               body += decoder.decode(chunk, { stream: true })
             }
             try { input = JSON.parse(body + decoder.decode()) } catch { return json(400, { error: 'invalid' }) }
@@ -86,7 +90,7 @@ export function registerBotChat(ctx: Context, token = bridgeToken()): void {
         } catch (error) {
           if (res.headersSent) { res.end(); return }
           const code = (error as { code?: string })?.code
-          const known = ['bot/invalid', 'bot/target-changed', 'bot/not-found', 'bot/read-only', 'bot/setup-required', 'bot/request-conflict', 'bot/send-refused', 'bot/model-unavailable']
+          const known = ['bot/invalid', 'bot/target-changed', 'bot/not-found', 'bot/read-only', 'bot/setup-required', 'bot/request-conflict', 'bot/send-refused', 'bot/model-unavailable', 'bot/stale', 'bot/file-too-large']
           json(code && known.includes(code) ? 409 : 503, { error: code && known.includes(code) ? code : 'unavailable' })
         }
       } })

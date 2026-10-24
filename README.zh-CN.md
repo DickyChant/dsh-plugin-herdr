@@ -51,3 +51,11 @@ pnpm test         # 单测（node --test）
 pnpm test:integration  # 对接真实 herdr server；不可用时 SKIP
 pnpm gen:types    # 从 herdr schema fixture 重新生成协议类型
 ```
+
+### 个人分支的原生会话
+
+`feat/bot-conversations` 在 `/herdr-bots/` 下增加 `upload`、`download`、
+`approvals` 和 `answer` 鉴权接口，并为聊天和消息流增加可选群聊目标。
+配合 DS Bot `feat/ovis-conversations` 和 Ovis `feat/native-conversations`
+使用。附件每个最大 10 MiB；审批仅支持明确的“仅允许一次”和“拒绝”，不修改权限策略。
+只读目录协议仍为版本 1；Ovis 不转发 DSH 浏览器 Cookie。

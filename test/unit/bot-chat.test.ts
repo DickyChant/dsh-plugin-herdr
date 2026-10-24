@@ -32,7 +32,7 @@ test('chat requires the private bridge credential, guards origins and bounds bod
   const bytes = Buffer.from(JSON.stringify({ text: '你好' }))
   assert.equal((await run([bytes.subarray(0, 11), bytes.subarray(11)], auth)).status, 200)
   assert.deepEqual(inputs, [{ text: '你好' }])
-  for (const action of ['settings', 'control']) {
+  for (const action of ['settings', 'control', 'upload', 'download', 'approvals', 'answer']) {
     ctx.botBridge[action] = async (input: unknown) => input
     assert.equal((await run([], {}, 'POST', `/herdr-bots/${action}`)).status, 401)
     assert.equal((await run([Buffer.from('{}')], { ...auth, origin: 'http://evil.test' }, 'POST', `/herdr-bots/${action}`)).status, 403)
