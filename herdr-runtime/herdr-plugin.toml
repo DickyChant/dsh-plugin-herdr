@@ -1,0 +1,39 @@
+id = "dickychant.dsh-runtime"
+name = "DSH Web runtime"
+version = "0.1.0"
+min_herdr_version = "0.9.4"
+description = "Run and recover DSH Web in a Herdr-owned background tab"
+platforms = ["linux"]
+
+[[startup]]
+command = ["sh", "launch.sh", "ensure"]
+
+[[actions]]
+id = "start"
+title = "Start DSH Web"
+contexts = ["workspace"]
+command = ["sh", "launch.sh", "start"]
+
+[[actions]]
+id = "stop"
+title = "Stop DSH Web"
+contexts = ["workspace"]
+command = ["sh", "launch.sh", "stop"]
+
+[[actions]]
+id = "status"
+title = "DSH Web status"
+contexts = ["workspace"]
+command = ["sh", "launch.sh", "status"]
+
+[[actions]]
+id = "logs"
+title = "DSH Web logs"
+contexts = ["workspace"]
+command = ["sh", "launch.sh", "logs"]
+
+[[panes]]
+id = "runtime"
+title = "DSH Web"
+placement = "tab"
+command = ["sh", "launch.sh", "supervise"]

@@ -38,10 +38,12 @@
     "test": "pnpm build && node --experimental-transform-types --test \"test/unit/*.test.ts\"",
     "test:integration": "pnpm build && node test/integration/run.mjs && node test/integration/extended.mjs && node test/integration/events.mjs && node test/integration/close-rename.mjs && node test/integration/terminal-session.mjs",
     "typecheck": "tsc --noEmit",
-    "quality": "pnpm build && pnpm typecheck && pnpm gen:types:check && node --experimental-transform-types --test \"test/unit/*.test.ts\"",
+    "quality": "pnpm build && pnpm typecheck && pnpm gen:types:check && node --experimental-transform-types --test \"test/unit/*.test.ts\" && pnpm test:runtime",
     "prepare": "pnpm build",
     "dsh:blank": "node scripts/blank-dsh.mjs",
-    "dsh:blank:reset": "node scripts/blank-dsh.mjs --reset"
+    "dsh:blank:reset": "node scripts/blank-dsh.mjs --reset",
+    "test:runtime": "node --test herdr-runtime/test/runtime.test.mjs",
+    "test:runtime:integration": "node herdr-runtime/test/herdr.integration.mjs"
   },
   "dsh": {
     "bundle": {

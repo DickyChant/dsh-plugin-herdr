@@ -33,6 +33,17 @@ dsh plugin --profile web add github:sunny0826/dsh-plugin-herdr
 
 安装后重启 profile。用 `dsh plugin --profile web list` 验证。
 
+## 在 Herdr 中管理 DSH Web
+
+可选的 [Herdr 运行时插件](herdr-runtime/README.md) 提供启动、停止、状态和日志操作，在后台标签页中运行 DSH Web，并支持崩溃重试与 Herdr 启动后恢复。目前支持 Linux/WSL；它与上面的 DSH 侧插件独立，开发保留在个人 fork 中。
+
+```sh
+herdr plugin install DickyChant/dsh-plugin-herdr/herdr-runtime --ref feat/herdr-dsh-runtime
+herdr plugin action invoke start --plugin dickychant.dsh-runtime
+```
+
+主动停止后，重启 Herdr 也不会自动启动 DSH，直到再次执行 Start。机器重启后需要先启动 Herdr；不会安装系统服务，也不会自动续写 Bot 对话。运行日志含登录链接，只保存在权限为 0600 的私有文件中；Logs 操作仅显示生命周期事件。
+
 ## 卸载
 
 ```sh

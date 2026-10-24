@@ -33,6 +33,17 @@ dsh plugin --profile web add github:sunny0826/dsh-plugin-herdr
 
 Restart the profile after install. Verify with `dsh plugin --profile web list`.
 
+## Keep DSH Web running in Herdr
+
+The optional [Herdr runtime companion](herdr-runtime/README.md) adds Start, Stop, Status and Logs actions, a background service tab, crash retries and startup recovery. It is separate from the DSH-side plugin above and currently supports Linux/WSL. Development lives in the personal fork; no upstream PR is required to install it.
+
+```sh
+herdr plugin install DickyChant/dsh-plugin-herdr/herdr-runtime --ref feat/herdr-dsh-runtime
+herdr plugin action invoke start --plugin dickychant.dsh-runtime
+```
+
+An intentional Stop persists across restarts. Recovery begins when Herdr starts; this does not install a machine startup service or automatically continue a Bot conversation.
+
 ## Uninstall
 
 ```sh
