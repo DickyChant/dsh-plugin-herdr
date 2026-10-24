@@ -9,6 +9,8 @@ import { guardLocalRequest } from './http-guard.ts'
 interface Bridge {
   chat(input: unknown): Promise<unknown>
   send(input: unknown): Promise<unknown>
+  settings(input: unknown): Promise<unknown>
+  control(input: unknown): Promise<unknown>
   subscribe(input: unknown, listener: (event: string, data: unknown) => void): Promise<() => void>
 }
 interface WebServer {
@@ -31,7 +33,7 @@ export function registerBotChat(ctx: Context, token = bridgeToken()): void {
       botCtx.effect(() => () => { bridge = undefined; for (const close of active) close() }, 'herdr: bot chat source')
     })
     const webServer = (webCtx as unknown as { webServer: WebServer }).webServer
-    for (const action of ['chat', 'send', 'events'] as const) {
+    for (const action of ['chat', 'send', 'events', 'settings', 'control'] as const) {
       const off = webServer.register({ kind: 'exact', path: `/herdr-bots/${action}`, handler: async (req, res) => {
         const json = (status: number, body: unknown) => {
           res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' })
@@ -84,7 +86,7 @@ export function registerBotChat(ctx: Context, token = bridgeToken()): void {
         } catch (error) {
           if (res.headersSent) { res.end(); return }
           const code = (error as { code?: string })?.code
-          const known = ['bot/invalid', 'bot/target-changed', 'bot/not-found', 'bot/read-only', 'bot/setup-required', 'bot/request-conflict', 'bot/send-refused']
+          const known = ['bot/invalid', 'bot/target-changed', 'bot/not-found', 'bot/read-only', 'bot/setup-required', 'bot/request-conflict', 'bot/send-refused', 'bot/model-unavailable']
           json(code && known.includes(code) ? 409 : 503, { error: code && known.includes(code) ? code : 'unavailable' })
         }
       } })
