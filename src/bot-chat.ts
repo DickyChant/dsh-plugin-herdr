@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import { guardLocalRequest } from './http-guard.ts'
 
 interface Bridge {
+  handoff(input: unknown): Promise<unknown>
   chat(input: unknown): Promise<unknown>
   send(input: unknown): Promise<unknown>
   settings(input: unknown): Promise<unknown>
@@ -28,7 +29,7 @@ export function bridgeToken(path = process.env.HERDR_DSH_TOKEN_FILE ?? join(home
   } catch { return undefined }
 }
 
-export function registerBotChat(ctx: Context, token = bridgeToken()): void {
+export function registerBotChat(ctx: Context, token = bridgeToken(), handoffToken = bridgeToken(process.env.HERDR_DSH_HANDOFF_TOKEN_FILE ?? join(homedir(), '.config', 'ovis-dsh', 'handoff-token'))): void {
   ctx.inject(['webServer'], webCtx => {
     let bridge: Bridge | undefined
     const active = new Set<() => void>()
@@ -37,7 +38,7 @@ export function registerBotChat(ctx: Context, token = bridgeToken()): void {
       botCtx.effect(() => () => { bridge = undefined; for (const close of active) close() }, 'herdr: bot chat source')
     })
     const webServer = (webCtx as unknown as { webServer: WebServer }).webServer
-    for (const action of ['chat', 'send', 'events', 'settings', 'control', 'upload', 'download', 'approvals', 'answer'] as const) {
+    for (const action of ['handoff', 'chat', 'send', 'events', 'settings', 'control', 'upload', 'download', 'approvals', 'answer'] as const) {
       const off = webServer.register({ kind: 'exact', path: `/herdr-bots/${action}`, handler: async (req, res) => {
         const json = (status: number, body: unknown) => {
           res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' })
@@ -45,9 +46,10 @@ export function registerBotChat(ctx: Context, token = bridgeToken()): void {
         }
         const guard = guardLocalRequest(req)
         if (!guard.ok) return json(guard.status, { error: 'forbidden' })
-        const expected = Buffer.from(`Bearer ${token ?? ''}`)
+        const credential = action === 'handoff' ? handoffToken : token
+        const expected = Buffer.from(`Bearer ${credential ?? ''}`)
         const actual = Buffer.from(req.headers.authorization ?? '')
-        if (!token || actual.length !== expected.length || !timingSafeEqual(actual, expected)) return json(401, { error: 'unauthorized' })
+        if (!credential || actual.length !== expected.length || !timingSafeEqual(actual, expected)) return json(401, { error: 'unauthorized' })
         if (req.method !== (action === 'events' ? 'GET' : 'POST')) return json(405, { error: 'method_not_allowed' })
         if (!bridge) return json(503, { error: 'unavailable' })
         try {
@@ -90,7 +92,7 @@ export function registerBotChat(ctx: Context, token = bridgeToken()): void {
         } catch (error) {
           if (res.headersSent) { res.end(); return }
           const code = (error as { code?: string })?.code
-          const known = ['bot/invalid', 'bot/target-changed', 'bot/not-found', 'bot/read-only', 'bot/setup-required', 'bot/request-conflict', 'bot/send-refused', 'bot/model-unavailable', 'bot/stale', 'bot/file-too-large']
+          const known = ['bot/handoff-store', 'bot/handoff-busy', 'bot/invalid', 'bot/target-changed', 'bot/not-found', 'bot/read-only', 'bot/setup-required', 'bot/request-conflict', 'bot/send-refused', 'bot/model-unavailable', 'bot/stale', 'bot/file-too-large']
           json(code && known.includes(code) ? 409 : 503, { error: code && known.includes(code) ? code : 'unavailable' })
         }
       } })

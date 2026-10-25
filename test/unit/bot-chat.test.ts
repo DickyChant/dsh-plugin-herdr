@@ -15,7 +15,7 @@ test('chat requires the private bridge credential, guards origins and bounds bod
     inject(_keys: string[], callback: (ctx: unknown) => void) { callback(ctx) },
     effect(callback: () => unknown) { callback() },
   }
-  registerBotChat(ctx as Context, token)
+  registerBotChat(ctx as Context, token, 'b'.repeat(64))
   const run = async (body: Buffer[], headers = {}, method = 'POST', path = '/herdr-bots/chat') => {
     const req = Object.assign(Readable.from(body), { method, headers: { host: '127.0.0.1:3096', ...headers } })
     const res = Object.assign(new EventEmitter(), {
@@ -25,6 +25,12 @@ test('chat requires the private bridge credential, guards origins and bounds bod
     return res
   }
   const auth = { authorization: `Bearer ${token}` }
+  ctx.botBridge.handoff = async (input: unknown) => input
+  const scoped = { authorization: `Bearer ${'b'.repeat(64)}` }
+  assert.equal((await run([Buffer.from('{}')], auth, 'POST', '/herdr-bots/handoff')).status, 401)
+  assert.equal((await run([Buffer.from('{}')], scoped, 'POST', '/herdr-bots/send')).status, 401)
+  assert.equal((await run([Buffer.from('{}')], scoped, 'POST', '/herdr-bots/handoff')).status, 200)
+  assert.equal((await run([Buffer.from('{}')], { ...scoped, origin: 'http://evil.test' }, 'POST', '/herdr-bots/handoff')).status, 403)
   assert.equal((await run([])).status, 401)
   assert.equal((await run([], { ...auth, origin: 'http://evil.test' })).status, 403)
   assert.equal((await run([], auth, 'GET')).status, 405)
