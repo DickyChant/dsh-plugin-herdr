@@ -1,8 +1,8 @@
 id = "dickychant.dsh-runtime"
-name = "DSH Web runtime"
-version = "0.1.0"
+name = "DSH runtime"
+version = "0.2.0"
 min_herdr_version = "0.9.4"
-description = "Run and recover DSH Web in a Herdr-owned background tab"
+description = "Run and recover DSH Web with an optional terminal UI in a Herdr-owned tab"
 platforms = ["linux"]
 
 [[startup]]

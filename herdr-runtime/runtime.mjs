@@ -26,9 +26,13 @@ export function settings(env = process.env) {
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('port must be 1–65535')
   const command = config.command || ['dsh']
   if (!Array.isArray(command) || !command.length || command.some(x => typeof x !== 'string' || !x || x.includes('\0'))) throw new Error('command must be a nonempty argv array')
+  const profile = config.profile ?? 'web'
+  if (typeof profile !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(profile)) throw new Error('profile must be a simple profile name')
+  const interactive = config.interactive ?? false
+  if (typeof interactive !== 'boolean') throw new Error('interactive must be a boolean')
   const socket = join(state, 'control.sock')
   if (Buffer.byteLength(socket) > 103) throw new Error('DSH home path is too long for the control socket')
-  return { configDir, home, state, socket, port, command, cwd: resolve(config.cwd || homedir()), env: config.env || {} }
+  return { configDir, home, state, socket, port, command, profile, interactive, cwd: resolve(config.cwd || homedir()), env: config.env || {} }
 }
 
 function prepare(s) {
@@ -86,7 +90,8 @@ function log(s, message) {
   if (existsSync(file) && statSync(file).size > 256 * 1024) renameSync(file, `${file}.1`)
   const line = `${new Date().toISOString()} ${message}\n`
   appendFileSync(file, line, { mode: 0o600 })
-  process.stdout.write(line)
+  // Lifecycle messages must not overwrite the interactive alternate screen.
+  if (!s.interactive) process.stdout.write(line)
 }
 
 async function start(s, explicit) {
@@ -112,7 +117,7 @@ async function start(s, explicit) {
   }
   let workspace = snapshot.focused_workspace_id || snapshot.workspaces[0]?.workspace_id
   if (!workspace) workspace = herdr(['workspace', 'create', '--cwd', s.cwd, '--label', 'DSH', '--no-focus']).workspace.workspace_id
-  const label = `DSH Web [${randomUUID().slice(0, 8)}]`
+  const label = `DSH ${s.interactive ? 'TUI + Web' : 'Web'} [${randomUUID().slice(0, 8)}]`
   const pane = herdr(['plugin', 'pane', 'open', '--plugin', PLUGIN_ID, '--entrypoint', 'runtime', '--placement', 'tab', '--workspace', workspace, '--cwd', root, '--env', `DSH_RUNTIME_NODE=${process.execPath}`, '--no-focus']).plugin_pane.pane
   herdr(['pane', 'rename', pane.pane_id, label])
   records[serverKey()] = { pane: pane.pane_id, label, root, terminal: pane.terminal_id }
@@ -139,6 +144,15 @@ async function stop(s) {
 async function serve(s) {
   // Only entered through launch.sh with the kernel-held runtime.lock.
   if (!enabled(s)) return
+  if (s.interactive && (!process.stdin.isTTY || !process.stdout.isTTY)) throw new Error('Interactive DSH requires a terminal; start it in a Herdr pane')
+  const terminalMode = s.interactive ? spawnSync('stty', ['-g'], { stdio: ['inherit', 'pipe', 'pipe'], encoding: 'utf8' }) : null
+  if (terminalMode && terminalMode.status !== 0) throw new Error('Could not save terminal settings')
+  const restoreTerminal = () => {
+    if (terminalMode) {
+      spawnSync('stty', [terminalMode.stdout.trim()], { stdio: ['inherit', 'ignore', 'ignore'] })
+      process.stdout.write('\x1b[?1049l\x1b[?25h\x1b[?2004l\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l')
+    }
+  }
   rmSync(s.socket, { force: true })
   let child = null
   let childResult = null
@@ -148,7 +162,7 @@ async function serve(s) {
   let exitCode = null
   let killTimer
   let lastReport = ''
-  const status = () => ({ state, enabled: enabled(s), managed: true, pid: process.pid, childPid: child?.pid ?? null, port: s.port, pane: process.env.HERDR_PANE_ID || null, failures, exitCode })
+  const status = () => ({ state, enabled: enabled(s), managed: true, pid: process.pid, childPid: child?.pid ?? null, port: s.port, profile: s.profile, interactive: s.interactive, pane: process.env.HERDR_PANE_ID || null, failures, exitCode })
   const signalChild = signal => {
     if (!child?.pid) return
     try { process.kill(-child.pid, signal) } catch (error) { if (error.code !== 'ESRCH') throw error }
@@ -160,6 +174,10 @@ async function serve(s) {
     if (!killTimer) killTimer = setTimeout(() => signalChild('SIGKILL'), 5000)
   }
   for (const signal of ['SIGTERM', 'SIGINT', 'SIGHUP']) process.on(signal, shutdown)
+  // The supervisor owns the foreground process group. Its detached child still
+  // uses the pane's TTY descriptors, so forward terminal resize notifications.
+  const resize = () => signalChild('SIGWINCH')
+  if (s.interactive) process.on('SIGWINCH', resize)
   const server = createServer(client => {
     client.setTimeout(1500, () => client.destroy())
     let input = ''
@@ -179,11 +197,12 @@ async function serve(s) {
   const env = { ...process.env, ...s.env, DSH_HOME: s.home }
   for (const key of Object.keys(env)) if (key.startsWith('HERDR_PLUGIN_') || ['HERDR_ENV', 'HERDR_PANE_ID', 'HERDR_WORKSPACE_ID', 'HERDR_TAB_ID'].includes(key)) delete env[key]
   const rawLog = join(s.state, 'dsh.log')
+  const displayName = s.interactive ? 'DSH TUI + Web' : 'DSH Web'
   const report = () => {
     if (!process.env.HERDR_PANE_ID || lastReport === state) return
     try {
-      herdr(['pane', 'report-agent', process.env.HERDR_PANE_ID, '--source', PLUGIN_ID, '--agent', 'dsh-web', '--state', state === 'ready' ? 'idle' : state === 'starting' ? 'working' : 'blocked', '--message', `DSH Web: ${state}`, '--seq', String(Date.now())])
-      herdr(['pane', 'report-metadata', process.env.HERDR_PANE_ID, '--source', PLUGIN_ID, '--applies-to-source', PLUGIN_ID, '--display-agent', 'DSH Web', '--title', `DSH Web: ${state}`, '--state-label', 'done=Ready', '--state-label', 'working=Starting', '--state-label', 'blocked=Needs attention', '--seq', String(Date.now())])
+      herdr(['pane', 'report-agent', process.env.HERDR_PANE_ID, '--source', PLUGIN_ID, '--agent', s.interactive ? 'dsh-tui' : 'dsh-web', '--state', state === 'ready' ? 'idle' : state === 'starting' ? 'working' : 'blocked', '--message', `${displayName}: ${state}`, '--seq', String(Date.now())])
+      herdr(['pane', 'report-metadata', process.env.HERDR_PANE_ID, '--source', PLUGIN_ID, '--applies-to-source', PLUGIN_ID, '--display-agent', displayName, '--title', `${displayName}: ${state}`, '--state-label', 'done=Ready', '--state-label', 'working=Starting', '--state-label', 'blocked=Needs attention', '--seq', String(Date.now())])
       lastReport = state
     } catch { /* Lifecycle must still shut down if Herdr is exiting. */ }
   }
@@ -208,9 +227,11 @@ async function serve(s) {
       report()
       const began = Date.now()
       exitCode = null
-      child = spawn(s.command[0], [...s.command.slice(1), 'web', '--host', '127.0.0.1', '--port', String(s.port), '--no-open'], { cwd: s.cwd, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] })
-      child.stdout.on('data', capture)
-      child.stderr.on('data', capture)
+      child = spawn(s.command[0], [...s.command.slice(1), '--profile', s.profile, '--host', '127.0.0.1', '--port', String(s.port), '--no-open'], { cwd: s.cwd, env, detached: true, stdio: s.interactive ? 'inherit' : ['ignore', 'pipe', 'pipe'] })
+      if (!s.interactive) {
+        child.stdout.on('data', capture)
+        child.stderr.on('data', capture)
+      }
       const result = childResult = new Promise(resolve => {
         child.once('error', error => resolve(error.code || 'spawn-error'))
         child.once('exit', (code, signal) => resolve(code ?? signal))
@@ -224,6 +245,7 @@ async function serve(s) {
       }
       if (!exited) shutdown()
       exitCode = await result
+      restoreTerminal()
       // Reap any tools still in this child's process group before starting again.
       signalChild('SIGTERM')
       child = null
@@ -242,6 +264,8 @@ async function serve(s) {
     shutdown()
     if (childResult) await childResult
     clearTimeout(killTimer)
+    restoreTerminal()
+    process.removeListener('SIGWINCH', resize)
     server.close()
     rmSync(s.socket, { force: true })
     log(s, 'Supervisor stopped')

@@ -29,8 +29,10 @@ async function fixture(t) {
   mkdirSync(s.state, { recursive: true })
   const desired = value => writeFileSync(join(s.state, 'desired.json'), JSON.stringify({ enabled: value }))
   const children = []
-  const run = command => {
-    const child = spawn('sh', [join(root, 'launch.sh'), command], { env, stdio: ['ignore', 'pipe', 'pipe'] })
+  const run = (command, terminal = false) => {
+    const child = terminal
+      ? spawn('script', ['-qefc', `sh '${join(root, 'launch.sh')}' ${command}`, '/dev/null'], { env, stdio: ['pipe', 'pipe', 'pipe'] })
+      : spawn('sh', [join(root, 'launch.sh'), command], { env, stdio: ['ignore', 'pipe', 'pipe'] })
     let output = ''
     child.stdout.on('data', chunk => { output += chunk })
     child.stderr.on('data', chunk => { output += chunk })
@@ -105,4 +107,31 @@ test('invalid ports fail before launching a process', async t => {
   const { dir } = await fixture(t)
   writeFileSync(join(dir, 'config/runtime.json'), '{"port":0}')
   assert.throws(() => settings({ HERDR_PLUGIN_CONFIG_DIR: join(dir, 'config') }), /port/)
+})
+
+test('interactive profile receives a TTY, input and resize; crash and Stop restore the terminal', { timeout: 20000 }, async t => {
+  const { s, dir, run, desired } = await fixture(t)
+  const file = join(dir, 'config/runtime.json')
+  const config = JSON.parse(readFileSync(file, 'utf8'))
+  writeFileSync(file, JSON.stringify({ ...config, profile: 'web-tui', interactive: true }))
+  desired(true)
+  const noTerminal = await run('supervise').done
+  assert.notEqual(noTerminal.code, 0)
+  assert.match(noTerminal.output, /requires a terminal/)
+  const supervisor = run('supervise', true)
+  const ready = await until(async () => { const status = await control(s); return status?.state === 'ready' && status })
+  assert.equal(ready.profile, 'web-tui')
+  assert.equal(ready.interactive, true)
+  assert.deepEqual(JSON.parse(readFileSync(join(dir, 'tty.json'), 'utf8')), { input: true, output: true, profile: 'web-tui' })
+  supervisor.child.stdin.write('hello-tui\n')
+  await until(() => { try { return readFileSync(join(dir, 'input'), 'utf8').includes('hello-tui') } catch { return false } })
+  process.kill(ready.pid, 'SIGWINCH')
+  await until(() => { try { return readFileSync(join(dir, 'resize'), 'utf8') === 'yes' } catch { return false } })
+  process.kill(ready.childPid, 'SIGKILL')
+  await until(async () => { const status = await control(s); return status?.state === 'ready' && status.childPid !== ready.childPid })
+  await run('stop').done
+  const stopped = await supervisor.done
+  assert.equal(stopped.code, 0)
+  assert.match(stopped.output, /\x1b\[\?1049l/)
+  assert.doesNotMatch((await run('logs').done).output, /FAKE_SECRET|hello-tui/)
 })

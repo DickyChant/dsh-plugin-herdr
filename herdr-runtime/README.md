@@ -1,6 +1,6 @@
 # DSH Web runtime for Herdr
 
-A Linux/WSL companion to the DSH-side `dsh-plugin-herdr`. It keeps one DSH **Web** runtime in a Herdr-owned background tab. It does not resume a TUI conversation or replay Bot prompts.
+A Linux/WSL companion to the DSH-side `dsh-plugin-herdr`. It keeps one DSH **Web** runtime in a Herdr-owned tab, optionally with an interactive TUI in that same process. It does not automatically resume a TUI conversation or replay Bot prompts.
 
 Requires Herdr 0.9.4+, Node 22+, `flock` (util-linux), and an already configured `dsh web` profile. Node and DSH must be available on the Herdr server's PATH. No npm install/build is needed for this companion.
 
@@ -39,7 +39,36 @@ Restoring uses a recorded, uniquely labelled service tab. The hook replaces only
 }
 ```
 
-`command` is an argv array, never a shell expression. Defaults are `dsh`, `$DSH_HOME` or `~/.dsh`, the user's home directory and port 3080. The runtime always binds to `127.0.0.1`, runs `web --no-open`, and uses the existing profile/plugins. Configuration is trusted local code configuration: `command` and `env` can launch/configure arbitrary programs. Stop before changing home/port/command, then Start. The plugin does not install DSH or modify its model, approval or conversation settings.
+`command` is an argv array, never a shell expression. Defaults are `dsh`, `$DSH_HOME` or `~/.dsh`, the user's home directory and port 3080. The runtime always binds to `127.0.0.1`, runs the selected profile (default `web`) with `--no-open`, and uses the existing profile/plugins. Configuration is trusted local code configuration: `command` and `env` can launch/configure arbitrary programs. Stop before changing home/port/command, then Start. The plugin does not install DSH or modify its model, approval or conversation settings.
+
+### TUI and Web together
+
+Prepare a separate DSH profile containing the Web bundle, the existing Bot/Herdr
+plugins and `@deepseek-harness-tui/dsh-tui`. Preserve the working profile's package
+manager settings (`nodeLinker: hoisted`, `autoInstallPeers: false`) so registry
+peers do not shadow the installed DSH core. Retain its Web authentication and CSP
+configuration. On DSH 0.2.1-rc.2, disable the `experimental-inspector` and
+`session-inspector` rows in the combined profile: the experimental inspector
+can crash during combined startup. Then set these additional fields in `runtime.json`:
+
+```json
+{
+  "profile": "web-tui",
+  "interactive": true
+}
+```
+
+`profile` defaults to `web`; `interactive` defaults to `false`. Interactive mode
+requires a real terminal and passes the pane's input/output directly to DSH.
+Resizes reach the child, and terminal settings are restored after exit or a
+crash. Lifecycle logs remain private and do not overwrite the TUI. Raw terminal
+output is visible in the pane and is not copied into `dsh.log` in this mode.
+
+Web and the TUI share one process. Leaving the Herdr client or browser does not
+stop it. Quitting the TUI stops that process and the supervisor restarts it using
+the usual backoff; use the Stop action to keep it stopped. Ovis continues using
+the same Web bridge and port. The TUI's conversation is not automatically the
+Chief Bot conversation; use Ovis's Bot workspace to talk to Chief.
 
 State is private under `$DSH_HOME/.herdr-runtime/web` (directory 0700). `events.log` contains only lifecycle events and is what Logs displays. `dsh.log` contains raw DSH output, including its browser login URL, and is **private (0600)**. Do not publish it. Logs rotate at 256 KiB/2 MiB respectively, retaining one previous file. Ovis's native `/dsh` workspace keeps using its existing authenticated bridge on port 3080; no browser cookies are shared or bypassed.
 
